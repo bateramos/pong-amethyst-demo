@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use amethyst::{
     prelude::*,
     renderer::{
@@ -7,6 +9,7 @@ use amethyst::{
     },
     utils::application_root_dir,
     core::transform::TransformBundle,
+    core::frame_limiter::FrameRateLimitStrategy,
     input::{InputBundle, StringBindings},
     ui::{RenderUi, UiBundle},
     audio::{AudioBundle, DjSystemDesc},
@@ -47,11 +50,15 @@ fn main() -> amethyst::Result<()> {
         .with_system_desc(systems::AudioSystemDesc::default(), "custom_audio_system", &[])
         .with(systems::InputSystem, "custom_input_system", &["input_system"])
         .with(systems::PaddleSystem, "paddle_system", &["input_system"])
-        .with(systems::MoveBallsSystem, "ball_system", &[])
-        .with(systems::BounceSystem, "bounce_system", &["paddle_system", "ball_system"])
-        .with(systems::WinnerSystem, "winner_system", &["ball_system"]);
+        .with(systems::MoveBallsSystem, "move_ball_system", &[])
+        .with(systems::BounceSystem::new(), "bounce_system", &["paddle_system", "move_ball_system"])
+        .with(systems::WinnerSystem, "winner_system", &["move_ball_system"])
+        .with_system_desc(systems::VelocitySystemDesc::default(), "velocity_system", &["bounce_system", "move_ball_system"])
+        .with_system_desc(systems::BallSystemDesc::default(), "ball_system", &["winner_system"]);
 
-    let mut game = Application::new(asset_dir, Pong::default(), game_data)?;
+    let mut game = Application::build(asset_dir, Pong::default())?
+        .with_frame_limit(FrameRateLimitStrategy::SleepAndYield(Duration::from_millis(2)), 144)
+        .build(game_data)?;
 
     game.run();
 

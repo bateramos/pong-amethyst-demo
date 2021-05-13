@@ -1,23 +1,38 @@
 use amethyst::{
     core::Transform,
-    ecs::{Join, ReadStorage, System, WriteStorage, Write},
+    core::timing::Time,
+    ecs::{Join, ReadStorage, ReadExpect, System, WriteStorage, Write},
     shrev::EventChannel,
 };
 
-use crate::pong::{Ball, Paddle, AREA_HEIGHT};
+use crate::pong::{Ball, Paddle, AREA_HEIGHT, PongEvent};
 use crate::audio::SoundEvent;
 
-pub struct BounceSystem;
+pub struct BounceSystem {
+    last_bounce: f32,
+}
+
+impl BounceSystem {
+    pub fn new() -> Self {
+        Self { last_bounce: 0.5 }
+    }
+}
 
 impl <'s> System<'s> for BounceSystem {
     type SystemData = (
         WriteStorage<'s, Ball>,
         ReadStorage<'s, Paddle>,
         ReadStorage<'s, Transform>,
+        ReadExpect<'s, Time>,
         Write<'s, EventChannel<SoundEvent>>,
+        Write<'s, EventChannel<PongEvent>>,
     );
 
-    fn run(&mut self, (mut balls, paddles, transforms, mut event_channel): Self::SystemData) {
+    fn run(&mut self, (mut balls, paddles, transforms, time, mut event_channel, mut pong_event_channel): Self::SystemData) {
+        if self.last_bounce > 0. {
+            self.last_bounce -= time.delta_seconds();
+        }
+
         for (ball, transform) in (&mut balls, &transforms).join() {
             let ball_x = transform.translation().x;
             let ball_y = transform.translation().y;
@@ -37,8 +52,15 @@ impl <'s> System<'s> for BounceSystem {
                     paddle_x + paddle.width + ball.radius,
                     paddle_y + paddle.height + ball.radius
                 ) {
+                    if self.last_bounce > 0.0 {
+                        return
+                    }
+
                     ball.velocity[0] = -ball.velocity[0];
                     event_channel.single_write(SoundEvent::Bounce);
+                    pong_event_channel.single_write(PongEvent::Bounce(ball.id));
+
+                    self.last_bounce = 0.5;
                 }
             }
         }

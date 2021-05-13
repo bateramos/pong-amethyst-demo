@@ -1,10 +1,7 @@
 use amethyst::{
     assets::{AssetStorage, Loader, Handle},
-    core::{
-        transform::Transform,
-        timing::Time,
-    },
-    ecs::{Component, DenseVecStorage, Entity},
+    core::{transform::Transform},
+    ecs::{World, Component, DenseVecStorage, Entity},
     prelude::*,
     renderer::{Camera, ImageFormat, SpriteRender, SpriteSheet, SpriteSheetFormat, Texture},
     ui::{Anchor, UiText, LineMode, TtfFormat, UiTransform},
@@ -15,17 +12,26 @@ use crate::audio::initialise_audio;
 pub const AREA_HEIGHT: f32 = 100.0;
 pub const AREA_WIDTH: f32 = 100.0;
 
-pub const PADDLE_HEIGHT: f32 = 16.0;
+pub const PADDLE_HEIGHT: f32 = 20.0;
 pub const PADDLE_WIDTH: f32 = 4.0;
 
 pub const BALL_VELOCITY_X: f32 = 75.0;
 pub const BALL_VELOCITY_Y: f32 = 50.0;
 pub const BALL_RADIUS:f32 = 2.0;
 
+#[derive(Debug)]
+pub enum PongEvent {
+    Bounce(&'static str), Score,
+}
+
 #[derive(Default)]
 pub struct Pong {
     ball_spawn_timer: Option<f32>,
     sprite_sheet_handler: Option<Handle<SpriteSheet>>,
+}
+
+pub struct SpriteSheetHandler {
+    pub sprite_sheet_handler: Handle<SpriteSheet>,
 }
 
 impl SimpleState for Pong {
@@ -35,30 +41,14 @@ impl SimpleState for Pong {
         let sprite_sheet_handler = load_sprite_sheet(world);
 
         self.ball_spawn_timer.replace(1.0);
-        self.sprite_sheet_handler.replace(sprite_sheet_handler);
+        self.sprite_sheet_handler.replace(sprite_sheet_handler.clone());
 
-        
         initialise_paddles(world, self.sprite_sheet_handler.clone().unwrap());
         initialise_camera(world);
         initialise_scoreboard(world);
         initialise_audio(world);
-    }
 
-    fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        if let Some(mut timer) = self.ball_spawn_timer.take() {
-            {
-                let time = data.world.fetch::<Time>();
-                timer -= time.delta_seconds();
-            }
-
-            if timer <= 0.0 {
-                initialise_ball(data.world, self.sprite_sheet_handler.clone().unwrap());
-                self.ball_spawn_timer.take();
-            } else {
-                self.ball_spawn_timer.replace(timer);
-            }
-        }
-        Trans::None
+        world.insert(SpriteSheetHandler { sprite_sheet_handler });
     }
 }
 
@@ -134,27 +124,23 @@ fn load_sprite_sheet(world: &mut World) -> Handle<SpriteSheet> {
     )
 }
 
+#[derive(Debug)]
 pub struct Ball {
+    pub id: &'static str,
     pub velocity: [f32; 2],
+    pub original_velocity: [f32; 2],
     pub radius: f32,
+}
+
+impl Ball {
+    pub fn default() -> Self {
+        let velocity = [BALL_VELOCITY_X, BALL_VELOCITY_Y];
+        Self { id: "ball", radius: BALL_RADIUS, velocity: velocity.clone(), original_velocity: velocity }
+    }
 }
 
 impl Component for Ball {
     type Storage = DenseVecStorage<Self>;
-}
-
-fn initialise_ball(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>) {
-    let mut local_transform = Transform::default();
-    local_transform.set_translation_xyz(AREA_WIDTH / 2.0, AREA_HEIGHT / 2.0, 0.0);
-
-    let sprite_render = SpriteRender::new(sprite_sheet_handle, 1);
-
-    world
-        .create_entity()
-        .with(sprite_render)
-        .with(local_transform)
-        .with(Ball { radius: BALL_RADIUS, velocity: [BALL_VELOCITY_X, BALL_VELOCITY_Y] })
-        .build();
 }
 
 #[derive(Default)]
