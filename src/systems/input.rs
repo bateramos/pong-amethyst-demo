@@ -15,5 +15,9 @@ impl <'s> System<'s> for InputSystem {
         if let Some((x, y)) = input.mouse_position() {
             //println!("{} {}", x, y);
         }
+
+        if input.action_is_down("Quit").unwrap_or(false) {
+            std::process::exit(0);
+        }
     }
 }
